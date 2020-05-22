@@ -8,6 +8,14 @@ from scipy.stats import uniform
 from numpy import arange
 import numpy
 from collections import namedtuple
+import umap
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+import seaborn as sns
+from sklearn.preprocessing import RobustScaler, QuantileTransformer, StandardScaler
+from sklearn.decomposition import PCA
+from collections import Counter
+import pickle
 
 mathew = make_scorer(matthews_corrcoef)
 # The support vectors machine classifier
@@ -43,7 +51,7 @@ def svc_classification(X_train, Y_train, X_test):
 
     return fitted_grid, fitted_random, y_grid, y_random
 
-def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid):
+def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, name):
     """ The function prints the scores of the models and the prediction performance """
 
     # Model comparison
@@ -52,8 +60,8 @@ def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid):
     random_score = fitted_random.best_score_
     random_params = fitted_random.best_params_
 
-    print(f"best grid score:{grid_score}, best grid parameters: {grid_params}")
-    print(f"best random scores: {random_score}, best random parameters: {random_params}")
+    print(f"best grid score {name}:{grid_score}, best grid parameters {name}: {grid_params}")
+    print(f"best random scores {name}: {random_score}, best random parameters {name}: {random_params}")
 
     # Metrics
     random_confusion = confusion_matrix(Y_test, y_random)
@@ -64,10 +72,10 @@ def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid):
     grid_accuracy = accuracy_score(Y_test, y_grid)
     random_multiple = precision_recall_fscore_support(Y_test, y_random, average="weighted")
     grid_multiple = precision_recall_fscore_support(Y_test, y_grid, average= "weighted")
-    print(f"best random confusion matrix: {random_confusion}, best grid confusion matrix: {grid_confusion}")
-    print(f"best random Mathew coefficient: {random_matthews}, best grid mathiews coeficient: {grid_matthews}")
-    print(f"best random accuracy: {random_accuracy}, best grid accuracy: {grid_accuracy}")
-    print(f"best random multiple score: {random_multiple}, best grid multiple score: {grid_multiple}")
+    print(f"best random confusion matrix {name}: {random_confusion}, best grid confusion matrix {name}: {grid_confusion}")
+    print(f"best random Mathew coefficient {name}: {random_matthews}, best grid mathiews coeficient {name}: {grid_matthews}")
+    print(f"best random accuracy {name}: {random_accuracy}, best grid accuracy {name}: {grid_accuracy}")
+    print(f"best random multiple score {name}: {random_multiple}, best grid multiple score {name}: {grid_multiple}")
 
     return grid_score, grid_params, grid_confusion, grid_accuracy, grid_multiple, grid_matthews, random_score, random_params, random_confusion, random_accuracy, random_matthews, random_multiple
 
@@ -106,9 +114,36 @@ local_score = pd.read_excel("sequences.xlsx", index_col=0, sheet_name="local")
 # generating X and Y
 Y = global_score["label"].copy()
 X = global_score.drop(["seq", "label"], axis=1)
+robust_X = RobustScaler(quantile_range=(10.0, 90.0)).fit_transform(X)
+quantile_X = QuantileTransformer(random_state=80).fit_transform(X)
+standard_X = StandardScaler().fit_transform(X)
 
 # Generate the model and the performance metrics
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.15, random_state=42)
+"""X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=80)
 fitted_grid, fitted_random, y_grid, y_random = svc_classification(X_train, Y_train, X_test)
 grid_score, grid_params, grid_confusion, grid_accuracy, grid_multiple, grid_matthews, random_score, random_params, random_confusion, random_accuracy, random_matthews, random_multiple = print_score(
-            fitted_grid, fitted_random, Y_test, y_random, y_grid)
+            fitted_grid, fitted_random, Y_test, y_random, y_grid)"""
+
+def scaled_data(X, Y, name):
+    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=80)
+    fitted_grid, fitted_random, y_grid, y_random = svc_classification(X_train, Y_train, X_test)
+    print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, name)
+
+# plotting the data, UMAP transformation
+"""
+sns.set(style='white', context='poster', rc={'figure.figsize':(14,10)})
+reducer = umap.UMAP(random_state=100, metric="russellrao", n_components=2)
+embedding = reducer.fit_transform(X)
+
+plt.scatter(embedding[:,0], embedding[:,1], c=Y, cmap="tab20c") """
+
+# PCA transformation
+pca = PCA(n_components=2, random_state=60)
+robust_PCA = pca.fit_transform(robust_X)
+quantile_PCA = pca.fit_transform(quantile_X)
+standard_PCA = pca.fit_transform(standard_X)
+
+count = 0
+for x in [robust_X, standard_X, quantile_X]:
+    count += 1
+    scaled_data(x, Y, name=str(count))
