@@ -2,7 +2,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from sklearn.model_selection import StratifiedKFold
 import pandas as pd
-from sklearn.metrics import matthews_corrcoef, make_scorer, confusion_matrix, accuracy_score, f1_score, precision_score, recall_score
+from sklearn.metrics import matthews_corrcoef, make_scorer, confusion_matrix, accuracy_score, f1_score, precision_score
+from sklearn.metrics import recall_score
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from scipy.stats import uniform
 from numpy import arange
@@ -18,35 +19,36 @@ from collections import Counter
 import pickle
 
 mathew = make_scorer(matthews_corrcoef)
+
 # The support vectors machine classifier
-def svc_classification(X_train, Y_train, X_test, state = 20):
+def svc_classification(X_train, Y_train, X_test, state=20):
     """A function that applies grid and random search to tune model and also gives a prediction"""
     # Creating a score and parameters to search from
 
     scoring = {"f1": "f1"}
 
     grid_param2 = [{"kernel": ["linear"], "C": arange(0.01, 1.1, 0.3)}, {"kernel": ["linear"], "C": range(1, 10, 2)},
-                {"kernel": ["rbf"], "C": arange(0.01, 1.1, 0.3), "gamma": arange(0.01, 1.1, 0.3)},
-               {"kernel": ["rbf"], "C": arange(1, 10, 2), "gamma": arange(1, 10, 2)},
-               {"kernel": ["rbf"], "C": arange(1, 10, 2), "gamma": arange(0.01, 1.1, 0.3)},
-               {"kernel": ["rbf"], "C": arange(0.01, 1.1, 0.3), "gamma": range(1, 10, 2)}]
+                   {"kernel": ["rbf"], "C": arange(0.01, 1.1, 0.3), "gamma": arange(0.01, 1.1, 0.3)},
+                   {"kernel": ["rbf"], "C": arange(1, 10, 2), "gamma": arange(1, 10, 2)},
+                   {"kernel": ["rbf"], "C": arange(1, 10, 2), "gamma": arange(0.01, 1.1, 0.3)},
+                   {"kernel": ["rbf"], "C": arange(0.01, 1.1, 0.3), "gamma": range(1, 10, 2)}]
 
-    random_param = [{"kernel":["linear"], "C": uniform(1, 10)}, {"kernel":["linear"], "C": uniform(0.01, 0.99)},
-                    {"kernel":["rbf"], "C": uniform(1, 10), "gamma": uniform(1, 10)},
-                {"kernel":["rbf"], "C": uniform(0.01, 0.99), "gamma": uniform(0.01, 0.99)},
-                    {"kernel":["rbf"], "C": uniform(0.01, 0.99), "gamma": uniform(1, 10)},
-                    {"kernel":["rbf"], "C": uniform(0.01, 0.99), "gamma": uniform(1, 10)}]
+    random_param = [{"kernel": ["linear"], "C": uniform(1, 10)}, {"kernel": ["linear"], "C": uniform(0.01, 0.99)},
+                    {"kernel": ["rbf"], "C": uniform(1, 10), "gamma": uniform(1, 10)},
+                    {"kernel": ["rbf"], "C": uniform(0.01, 0.99), "gamma": uniform(0.01, 0.99)},
+                    {"kernel": ["rbf"], "C": uniform(0.01, 0.99), "gamma": uniform(1, 10)},
+                    {"kernel": ["rbf"], "C": uniform(0.01, 0.99), "gamma": uniform(1, 10)}]
 
     # Model setting
 
     svc_grid = GridSearchCV(SVC(), grid_param2, scoring=scoring, refit="f1", cv=10)
     svc_random = RandomizedSearchCV(SVC(), random_param, scoring=scoring, refit="f1", cv=10, random_state=state)
 
-    #Model training
+    # Model training
     fitted_grid = svc_grid.fit(X_train, Y_train)
     fitted_random = svc_random.fit(X_train, Y_train)
 
-    #Model predictions
+    # Model predictions
     y_random = fitted_random.predict(X_test)
     y_grid = fitted_grid.predict(X_test)
 
@@ -55,7 +57,9 @@ def svc_classification(X_train, Y_train, X_test, state = 20):
 
     return fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted
 
-def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, random_train_predicted, grid_train_predicted, Y_train, name=None):
+
+def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, random_train_predicted, grid_train_predicted,
+                Y_train, name=None):
     """ The function prints the scores of the models and the prediction performance """
 
     # Model comparison
@@ -81,9 +85,9 @@ def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, random_tra
     random_accuracy = accuracy_score(Y_test, y_random)
     grid_accuracy = accuracy_score(Y_test, y_grid)
     random_f1 = f1_score(Y_test, y_random, average="weighted")
-    grid_f1 = f1_score(Y_test, y_grid, average= "weighted")
+    grid_f1 = f1_score(Y_test, y_grid, average="weighted")
     random_precision = precision_score(Y_test, y_random, average="weighted")
-    grid_precision = precision_score(Y_test, y_grid,average="weighted")
+    grid_precision = precision_score(Y_test, y_grid, average="weighted")
     random_recall = recall_score(Y_test, y_random, average="weighted")
     grid_recall = recall_score(Y_test, y_grid, average="weighted")
 
@@ -94,7 +98,8 @@ def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, random_tra
     print(f"random precision score {name}: {random_precision}, grid precision score {name}: {grid_precision}")
     print(f"random recall score {name}: {random_recall}, grid recall score {name}: {grid_recall}")
 
-    return grid_score, grid_params, grid_confusion, grid_accuracy, grid_f1, grid_precision, grid_recall, grid_matthews, random_score, random_params, random_confusion, random_accuracy, random_matthews, random_f1, random_precision, random_recall
+    return grid_score, grid_params, grid_confusion, grid_accuracy, grid_f1, grid_precision, grid_recall, grid_matthews, random_score, random_params, random_confusion, random_accuracy, random_matthews, random_f1, random_precision, random_recall, random_train_confusion, grid_train_confusion
+
 
 def nested_cv(X, Y):
     """Performs something similar to a nested cross-validation"""
@@ -104,16 +109,19 @@ def nested_cv(X, Y):
     parameter_list = []
     for states in [30, 42, 50, 70, 80, 90, 100, 200, 300, 400]:
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=states, stratify=Y)
-        fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted = svc_classification(X_train, Y_train, X_test, state=states)
-        grid_score, grid_params, grid_confusion, grid_accuracy, grid_f1, grid_precision, grid_recall, grid_matthews, random_score, random_params, random_confusion, random_accuracy, random_matthews, random_f1, random_precision, random_recall = print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid)
+        fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted = svc_classification(
+            X_train, Y_train, X_test, state=states)
+        grid_score, grid_params, grid_confusion, grid_accuracy, grid_f1, grid_precision, grid_recall, grid_matthews, random_score, random_params, random_confusion, random_accuracy, random_matthews, random_f1, random_precision, random_recall, random_train_confusion, grid_train_confusion = print_score(
+            fitted_grid, fitted_random, Y_test, y_random, y_grid, random_train_predicted, grid_train_predicted,Y_train)
 
         model_list.append([fitted_grid, fitted_random, y_grid, y_random])
         metric_list.append(
             [grid_score, grid_accuracy, grid_f1, grid_precision,
              grid_recall, grid_matthews, random_score,
              random_accuracy, random_matthews, random_f1, random_precision, random_recall])
-        parameter_list.append([grid_params, grid_confusion, random_params, random_confusion])
+        parameter_list.append([grid_params, grid_confusion, random_params, random_confusion, random_train_confusion, grid_train_confusion])
     return model_list, metric_list, parameter_list
+
 
 def mean_nested(X, Y):
     """From the results of the nested_CV it computes the means of the different performance metrics"""
@@ -122,16 +130,18 @@ def mean_nested(X, Y):
                                          "grid_matthews",
                                          "random_score", "random_accuracy", "random_matthews",
                                          "random_f1", "random_precision", "random_recall"])
-    parameter_record = namedtuple("parameters", ["grid_params", "grid_confusion", "random_params", "random_confusion"])
+    parameter_record = namedtuple("parameters", ["grid_params", "grid_confusion", "random_params", "random_confusion",
+                                                 "random_train_confusion", "grid_train_confusion"])
 
     array = numpy.array(metric_list)
     mean = numpy.mean(array, axis=0)
 
-    named_parameters = [parameter_record(*x) for x in parameter_list]
+    named_parameters = [parameter_record(*z) for z in parameter_list]
     named_mean = score_record(*mean)
     named_records = [score_record(*y) for y in metric_list]
 
     return named_mean, model_list, named_parameters, named_records
+
 
 # Loading the excel files
 global_score = pd.read_excel("sequences.xlsx", index_col=0, sheet_name="global")
@@ -145,14 +155,19 @@ standard_X = StandardScaler().fit_transform(X)
 
 # Generate the model and the performance metrics
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=80)
-fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted= svc_classification(X_train, Y_train, X_test)
-grid_score, grid_params, grid_confusion, grid_accuracy, grid_f1, grid_precision, grid_recall, grid_matthews, random_score, random_params, random_confusion, random_accuracy, random_matthews, random_f1, random_precision, random_recall = print_score(
-            fitted_grid, fitted_random, Y_test, y_random, y_grid)
+fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted = svc_classification(X_train,
+                                                                                                                Y_train,
+                                                                                                                X_test)
+grid_score, grid_params, grid_confusion, grid_accuracy, grid_f1, grid_precision, grid_recall, grid_matthews, random_score, random_params, random_confusion, random_accuracy, random_matthews, random_f1, random_precision, random_recall, random_train_confusion, grid_train_confusion = print_score(
+    fitted_grid, fitted_random, Y_test, y_random, y_grid, random_train_predicted, grid_train_predicted, Y_train)
+
 
 def scaled_data(X, Y, name):
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=80)
-    fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted = svc_classification(X_train, Y_train, X_test)
-    print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, name)
+    fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted = svc_classification(
+        X_train, Y_train, X_test)
+    print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, random_train_predicted, grid_train_predicted, Y_train, name)
+
 
 # plotting the data, UMAP transformation
 """
@@ -185,5 +200,4 @@ for x in [robust_X, standard_X]:
 
 # Trying the nested CV
 s_named_mean, s_model_list, s_named_parameters, s_named_records = mean_nested(standard_X, Y)
-#r_named_mean, r_model_list, r_named_parameters = mean_nested(robust_X, Y) --> error
-
+# r_named_mean, r_model_list, r_named_parameters = mean_nested(robust_X, Y) --> error
