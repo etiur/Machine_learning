@@ -50,9 +50,12 @@ def svc_classification(X_train, Y_train, X_test, state = 20):
     y_random = fitted_random.predict(X_test)
     y_grid = fitted_grid.predict(X_test)
 
-    return fitted_grid, fitted_random, y_grid, y_random
+    grid_train_predicted = fitted_grid.predict(X_train)
+    random_train_predicted = fitted_random.predict(X_train)
 
-def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, name=None):
+    return fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted
+
+def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, random_train_predicted, grid_train_predicted, Y_train, name=None):
     """ The function prints the scores of the models and the prediction performance """
 
     # Model comparison
@@ -64,7 +67,13 @@ def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, name=None)
     print(f"best grid score {name}:{grid_score}, best grid parameters {name}: {grid_params}")
     print(f"best random scores {name}: {random_score}, best random parameters {name}: {random_params}")
 
-    # Metrics
+    # Training scores
+    random_train_confusion = confusion_matrix(Y_train, random_train_predicted)
+    grid_train_confusion = confusion_matrix(Y_train, grid_train_predicted)
+    print(f"grid training matrix {name}:{grid_train_confusion}")
+    print(f"random training matrix {name}: {random_train_confusion}")
+
+    # Test metrics
     random_confusion = confusion_matrix(Y_test, y_random)
     grid_confusion = confusion_matrix(Y_test, y_grid)
     random_matthews = matthews_corrcoef(Y_test, y_random)
@@ -95,7 +104,7 @@ def nested_cv(X, Y):
     parameter_list = []
     for states in [30, 42, 50, 70, 80, 90, 100, 200, 300, 400]:
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=states, stratify=Y)
-        fitted_grid, fitted_random, y_grid, y_random = svc_classification(X_train, Y_train, X_test, state=states)
+        fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted = svc_classification(X_train, Y_train, X_test, state=states)
         grid_score, grid_params, grid_confusion, grid_accuracy, grid_f1, grid_precision, grid_recall, grid_matthews, random_score, random_params, random_confusion, random_accuracy, random_matthews, random_f1, random_precision, random_recall = print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid)
 
         model_list.append([fitted_grid, fitted_random, y_grid, y_random])
@@ -136,13 +145,13 @@ standard_X = StandardScaler().fit_transform(X)
 
 # Generate the model and the performance metrics
 X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=80)
-fitted_grid, fitted_random, y_grid, y_random = svc_classification(X_train, Y_train, X_test)
+fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted= svc_classification(X_train, Y_train, X_test)
 grid_score, grid_params, grid_confusion, grid_accuracy, grid_f1, grid_precision, grid_recall, grid_matthews, random_score, random_params, random_confusion, random_accuracy, random_matthews, random_f1, random_precision, random_recall = print_score(
             fitted_grid, fitted_random, Y_test, y_random, y_grid)
 
 def scaled_data(X, Y, name):
     X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=80)
-    fitted_grid, fitted_random, y_grid, y_random = svc_classification(X_train, Y_train, X_test)
+    fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted = svc_classification(X_train, Y_train, X_test)
     print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, name)
 
 # plotting the data, UMAP transformation
