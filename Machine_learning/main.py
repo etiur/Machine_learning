@@ -1,6 +1,5 @@
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
-from sklearn.model_selection import StratifiedKFold
 import pandas as pd
 from sklearn.metrics import matthews_corrcoef, make_scorer, confusion_matrix, accuracy_score, f1_score, precision_score
 from sklearn.metrics import recall_score
@@ -11,7 +10,6 @@ import numpy
 from collections import namedtuple
 import umap
 import matplotlib.pyplot as plt
-from mpl_toolkits.mplot3d import Axes3D
 import seaborn as sns
 from sklearn.preprocessing import RobustScaler, StandardScaler
 from sklearn.decomposition import PCA
@@ -173,24 +171,96 @@ def unlisting(named_parameters, named_records):
     # Hyperparameters grid search
     g_kernel = [y.grid_params["kernel"] for y in named_parameters]
     g_C = [y.grid_params["C"] for y in named_parameters]
-    g_gamma = [y.grid_params["gamma"] for y in named_parameters]
+    g_gamma = [y.grid_params["gamma"] if y.grid_params.get("gamma") else 0 for y in named_parameters]
 
     # Hyperparameters random search
     r_kernel = [y.random_params["kernel"] for y in named_parameters]
     r_C = [y.random_params["C"] for y in named_parameters]
-    r_gamma = [y.random_params["gamma"] for y in named_parameters]
+    r_gamma = [y.random_params["gamma"] if y.random_params.get("gamma") else 0 for y in named_parameters]
 
     return r_mathew, r_accuracy, r_f1, r_precision, r_recall, g_mathew, g_accuracy, g_f1, g_precision, g_recall, \
             g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma
 
 def plotting(named_parameters, named_records):
     """ Plots everything"""
-    sns.set(style='white', context='poster')
+    sns.set(style='white', context='poster', palette="muted")
 
     r_mathew, r_accuracy, r_f1, r_precision, r_recall, g_mathew, g_accuracy, g_f1, g_precision, g_recall, \
-    g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma = unlisting(named_parameters, named_records)
+    g_kernel , g_C, g_gamma, r_kernel, r_C, r_gamma = unlisting(named_parameters, named_records)
+
+    # plotting C values
     plt.figure()
-    plt.subplot(2,2)
+    plt.subplot(2,2,1)
+    plt.scatter(r_C,r_mathew,"ro")
+    plt.title("Scatter of Matthews VS random C")
+    plt.xlabel("C values")
+    plt.ylabel("Matthew score")
+
+    plt.subplot(2,2,2)
+    plt.scatter(r_C,r_f1,"g--")
+    plt.title("Scatter of f1 VS random C")
+    plt.xlabel("C values")
+    plt.ylabel("F1 score")
+
+    plt.subplot(2, 2, 4)
+    plt.scatter(g_C, g_mathew, "b^")
+    plt.title("Scatter of Matthew VS grid C")
+    plt.xlabel("C values")
+    plt.ylabel("Matthew score")
+
+    plt.subplot(2,2,3)
+    plt.scatter(g_C,g_f1,"ks")
+    plt.title("Scatter of f1 VS grid C")
+    plt.xlabel("C values")
+    plt.ylabel("F1 score")
+
+    # plotting gamma values
+    plt.figure()
+    plt.subplot(2, 2, 1)
+    plt.scatter(r_gamma, r_mathew, "ro")
+    plt.title("Scatter of Matthews VS random gamma")
+    plt.xlabel("gamma values")
+    plt.ylabel("Matthew score")
+
+    plt.subplot(2, 2, 2)
+    plt.scatter(r_gamma, r_f1, "b^")
+    plt.title("Scatter of F1 VS random gamma")
+    plt.xlabel("gamma values")
+    plt.ylabel("F1 score")
+
+    plt.subplot(2, 2, 3)
+    plt.scatter(g_gamma, g_mathew, "g--")
+    plt.title("Scatter of Matthew VS grid gamma")
+    plt.xlabel("gamma values")
+    plt.ylabel("Matthew score")
+
+    plt.subplot(2, 2, 3)
+    plt.scatter(g_gamma, g_f1, "ks")
+    plt.title("Scatter of F1 VS grid gamma")
+    plt.xlabel("gamma values")
+    plt.ylabel("F1 score")
+
+    # Kernel plotting
+    pd_r_matthew =pd.DataFrame(numpy.column_stack([r_kernel, r_mathew]), columns=["kernel", "scores"])
+    pd_r_f1 = pd.DataFrame(numpy.column_stack([r_kernel, r_f1]), columns=["kernel", "scores"])
+    pd_g_matthew = pd.DataFrame(numpy.column_stack([g_kernel, g_mathew]), columns=["kernel", "scores"])
+    pd_g_f1 = pd.DataFrame(numpy.column_stack([g_kernel, g_f1]), columns=["kernel", "scores"])
+
+    plt.figure()
+    plt.subplot(2, 2)
+    plt.title("Catplot of Matthew VS random Kernel")
+    sns.catplot(x="random kernel type", y="Matthew score", kind="swarm", data=pd_r_matthew)
+
+    plt.title("Catplot of F1 VS random Kernel")
+    sns.catplot(x="random kernel type", y="F1 score", kind="swarm", data=pd_r_f1)
+
+    plt.title("Catplot of Matthew VS grid Kernel")
+    sns.catplot(x="Grid kernel type", y="Matthew score", kind="swarm", data=pd_g_matthew)
+
+    plt.title("Catplot of F1 VS grid Kernel")
+    sns.catplot(x="Grid kernel type", y="F1 score", kind="swarm", data=pd_g_f1)
+
+    plt.tight_layout()
 
 
 # Loading the excel files
