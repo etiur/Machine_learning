@@ -326,6 +326,14 @@ def to_dataframe(named_parameters, named_records, random_state):
     return r_dataframe.set_index("random_state"), g_dataframe.set_index("random_state")
 
 
+def view_setting():
+    """ Sets the console view of how many columns the console displays"""
+    desired_width = 320
+    pd.set_option('display.width', desired_width)
+    numpy.set_printoptions(linewidth=desired_width)
+    pd.set_option('display.max_columns', 14)
+
+
 # Loading the excel files
 global_score = pd.read_excel("sequences.xlsx", index_col=0, sheet_name="global")
 local_score = pd.read_excel("sequences.xlsx", index_col=0, sheet_name="local")
@@ -379,9 +387,11 @@ for x in [robust_X, standard_X]:
     count += 1
     X_train, X_test, Y_train, Y_test = scaled_data(x, Y, name=str(count))
     L.append([X_train, X_test, Y_train, Y_test]) """
+
 # Trying the nested CV
 s_named_mean, s_model_list, s_named_parameters, s_named_records, s_random_state = mean_nested(standard_X, Y, 0)
-
 # r_named_mean, r_model_list, r_named_parameters = mean_nested(robust_X, Y) --> error
 
+# Generate sthe dataframe
 r_dataframe, g_dataframe = to_dataframe(s_named_parameters, s_named_records, s_random_state)
+view_setting()
