@@ -18,6 +18,7 @@ import pickle
 
 mathew = make_scorer(matthews_corrcoef)
 
+
 # The support vectors machine classifier
 def svc_classification(X_train, Y_train, X_test, state=20):
     """A function that applies grid and random search to tune model and also gives a prediction"""
@@ -40,7 +41,8 @@ def svc_classification(X_train, Y_train, X_test, state=20):
     # Model setting
 
     svc_grid = GridSearchCV(SVC(class_weight="balanced"), grid_param2, scoring=scoring, refit="f1", cv=5)
-    svc_random = RandomizedSearchCV(SVC(class_weight="balanced"), random_param, scoring=scoring, refit="f1", cv=5, random_state=state)
+    svc_random = RandomizedSearchCV(SVC(class_weight="balanced"), random_param, scoring=scoring, refit="f1", cv=5,
+                                    random_state=state)
 
     # Model training
     fitted_grid = svc_grid.fit(X_train, Y_train)
@@ -116,9 +118,10 @@ def nested_cv(X, Y, name):
             X_train, Y_train, X_test, state=states)
 
         grid_score, grid_params, grid_confusion, grid_accuracy, grid_f1, grid_precision, grid_recall, grid_matthews, \
-        random_score, random_params, random_confusion, random_accuracy, random_matthews, random_f1, random_precision,\
+        random_score, random_params, random_confusion, random_accuracy, random_matthews, random_f1, random_precision, \
         random_recall, random_train_confusion, grid_train_confusion = print_score(
-            fitted_grid, fitted_random, Y_test, y_random, y_grid, random_train_predicted, grid_train_predicted,Y_train, name)
+            fitted_grid, fitted_random, Y_test, y_random, y_grid, random_train_predicted, grid_train_predicted, Y_train,
+            name)
 
         model_list.append([fitted_grid, fitted_random, y_grid, y_random])
 
@@ -131,6 +134,7 @@ def nested_cv(X, Y, name):
                                random_train_confusion, grid_train_confusion])
 
     return model_list, metric_list, parameter_list, random_state
+
 
 def mean_nested(X, Y, name):
     """From the results of the nested_CV it computes the means of the different performance metrics"""
@@ -179,88 +183,103 @@ def unlisting(named_parameters, named_records):
     r_gamma = [y.random_params["gamma"] if y.random_params.get("gamma") else 0 for y in named_parameters]
 
     return r_mathew, r_accuracy, r_f1, r_precision, r_recall, g_mathew, g_accuracy, g_f1, g_precision, g_recall, \
-            g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma
+           g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma
+
 
 def plotting(named_parameters, named_records):
     """ Plots everything"""
-    sns.set(style='white', context='poster', palette="muted")
+    sns.set(style='white', context='poster', rc={'figure.figsize': (14, 10)})
 
     r_mathew, r_accuracy, r_f1, r_precision, r_recall, g_mathew, g_accuracy, g_f1, g_precision, g_recall, \
-    g_kernel , g_C, g_gamma, r_kernel, r_C, r_gamma = unlisting(named_parameters, named_records)
+    g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma = unlisting(named_parameters, named_records)
 
     # plotting C values
     plt.figure()
-    plt.subplot(2,2,1)
-    plt.scatter(r_C,r_mathew,"ro")
+    plt.scatter(r_C, r_mathew)
     plt.title("Scatter of Matthews VS random C")
     plt.xlabel("C values")
     plt.ylabel("Matthew score")
 
-    plt.subplot(2,2,2)
-    plt.scatter(r_C,r_f1,"g--")
+    plt.figure()
+    plt.scatter(r_C, r_f1)
     plt.title("Scatter of f1 VS random C")
     plt.xlabel("C values")
     plt.ylabel("F1 score")
 
-    plt.subplot(2, 2, 4)
-    plt.scatter(g_C, g_mathew, "b^")
+    plt.figure()
+    plt.scatter(g_C, g_mathew)
     plt.title("Scatter of Matthew VS grid C")
     plt.xlabel("C values")
     plt.ylabel("Matthew score")
 
-    plt.subplot(2,2,3)
-    plt.scatter(g_C,g_f1,"ks")
+    plt.figure()
+    plt.scatter(g_C, g_f1)
     plt.title("Scatter of f1 VS grid C")
     plt.xlabel("C values")
     plt.ylabel("F1 score")
 
     # plotting gamma values
     plt.figure()
-    plt.subplot(2, 2, 1)
-    plt.scatter(r_gamma, r_mathew, "ro")
+    plt.scatter(r_gamma, r_mathew)
     plt.title("Scatter of Matthews VS random gamma")
     plt.xlabel("gamma values")
     plt.ylabel("Matthew score")
 
-    plt.subplot(2, 2, 2)
-    plt.scatter(r_gamma, r_f1, "b^")
+    plt.figure()
+    plt.scatter(r_gamma, r_f1)
     plt.title("Scatter of F1 VS random gamma")
     plt.xlabel("gamma values")
     plt.ylabel("F1 score")
 
-    plt.subplot(2, 2, 3)
-    plt.scatter(g_gamma, g_mathew, "g--")
+    plt.figure()
+    plt.scatter(g_gamma, g_mathew)
     plt.title("Scatter of Matthew VS grid gamma")
     plt.xlabel("gamma values")
     plt.ylabel("Matthew score")
 
-    plt.subplot(2, 2, 3)
-    plt.scatter(g_gamma, g_f1, "ks")
+    plt.figure()
+    plt.scatter(g_gamma, g_f1)
     plt.title("Scatter of F1 VS grid gamma")
     plt.xlabel("gamma values")
     plt.ylabel("F1 score")
 
     # Kernel plotting
-    pd_r_matthew =pd.DataFrame(numpy.column_stack([r_kernel, r_mathew]), columns=["kernel", "scores"])
+    pd_r_matthew = pd.DataFrame(numpy.column_stack([r_kernel, r_mathew]), columns=["kernel", "scores"])
     pd_r_f1 = pd.DataFrame(numpy.column_stack([r_kernel, r_f1]), columns=["kernel", "scores"])
     pd_g_matthew = pd.DataFrame(numpy.column_stack([g_kernel, g_mathew]), columns=["kernel", "scores"])
     pd_g_f1 = pd.DataFrame(numpy.column_stack([g_kernel, g_f1]), columns=["kernel", "scores"])
 
     plt.figure()
-    plt.subplot(2, 2)
     plt.title("Catplot of Matthew VS random Kernel")
     sns.catplot(x="random kernel type", y="Matthew score", kind="swarm", data=pd_r_matthew)
 
+    plt.figure()
     plt.title("Catplot of F1 VS random Kernel")
     sns.catplot(x="random kernel type", y="F1 score", kind="swarm", data=pd_r_f1)
 
+    plt.figure()
     plt.title("Catplot of Matthew VS grid Kernel")
     sns.catplot(x="Grid kernel type", y="Matthew score", kind="swarm", data=pd_g_matthew)
 
+    plt.figure()
     plt.title("Catplot of F1 VS grid Kernel")
     sns.catplot(x="Grid kernel type", y="F1 score", kind="swarm", data=pd_g_f1)
 
     plt.tight_layout()
+
+
+def to_dataframe(named_parameters, named_records, random_state):
+    r_mathew, r_accuracy, r_f1, r_precision, r_recall, g_mathew, g_accuracy, g_f1, g_precision, g_recall, \
+    g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma = unlisting(named_parameters, named_records)
+
+    r_dataframe = pd.DataFrame(numpy.column_stack([random_state, r_kernel, r_mathew, r_C, r_f1, r_gamma]),
+                               columns=["random_satate", "kernel",
+                                        "Mathews", "C", "F1", "gamma"]).set_index("random_state", inplace=True)
+    g_dataframe = pd.DataFrame(numpy.column_stack([random_state, g_kernel, g_mathew, g_C, g_f1, g_gamma]),
+                               columns=["random_satate", "kernel",
+                                        "Mathews", "C", "F1", "gamma"]).set_index("random_state", inplace=True)
+
+    return r_dataframe, g_dataframe
 
 
 # Loading the excel files
@@ -273,6 +292,7 @@ X = global_score.drop(["seq", "label"], axis=1)
 robust_X = RobustScaler().fit_transform(X)
 standard_X = StandardScaler().fit_transform(X)
 
+
 # Generate the model and the performance metrics
 
 def scaled_data(X, Y, name):
@@ -283,6 +303,8 @@ def scaled_data(X, Y, name):
                 Y_train, name)
 
     return X_train, X_test, Y_train, Y_test
+
+
 # plotting the data, UMAP transformation
 """
 sns.set(style='white', context='poster', rc={'figure.figsize':(14,10)})
