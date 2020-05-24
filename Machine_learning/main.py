@@ -164,6 +164,7 @@ def unlisting(named_parameters, named_records):
     r_f1 = [x.random_f1 for x in named_records]
     r_precision = [x.random_precision for x in named_records]
     r_recall = [x.random_recall for x in named_records]
+    r_cv_score = [x.random_score for x in named_records]
 
     # Getting all scores grid search
     g_mathew = [x.grid_matthews for x in named_records]
@@ -171,6 +172,7 @@ def unlisting(named_parameters, named_records):
     g_f1 = [x.grid_f1 for x in named_records]
     g_precision = [x.grid_precision for x in named_records]
     g_recall = [x.grid_recall for x in named_records]
+    g_cv_score = [x.grid_score for x in named_records]
 
     # Hyperparameters grid search
     g_kernel = [y.grid_params["kernel"] for y in named_parameters]
@@ -183,7 +185,7 @@ def unlisting(named_parameters, named_records):
     r_gamma = [y.random_params["gamma"] if y.random_params.get("gamma") else 0 for y in named_parameters]
 
     return r_mathew, r_accuracy, r_f1, r_precision, r_recall, g_mathew, g_accuracy, g_f1, g_precision, g_recall, \
-           g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma
+           g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma, r_cv_score, g_cv_score
 
 
 def plotting(named_parameters, named_records):
@@ -191,7 +193,7 @@ def plotting(named_parameters, named_records):
     sns.set(style='white', context='poster', rc={'figure.figsize': (14, 10)})
 
     r_mathew, r_accuracy, r_f1, r_precision, r_recall, g_mathew, g_accuracy, g_f1, g_precision, g_recall, \
-    g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma = unlisting(named_parameters, named_records)
+    g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma, r_cv_score, g_cv_score = unlisting(named_parameters, named_records)
 
     # plotting C values
     plt.figure()
@@ -269,17 +271,59 @@ def plotting(named_parameters, named_records):
 
 
 def to_dataframe(named_parameters, named_records, random_state):
+    matrix = namedtuple("confusion_matrix", ["true_n", "false_p", "false_n", "true_p"])
+
     r_mathew, r_accuracy, r_f1, r_precision, r_recall, g_mathew, g_accuracy, g_f1, g_precision, g_recall, \
-    g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma = unlisting(named_parameters, named_records)
+    g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma, r_cv_score, g_cv_score = unlisting(named_parameters, named_records)
 
-    r_dataframe = pd.DataFrame(numpy.column_stack([random_state, r_kernel, r_mathew, r_C, r_f1, r_gamma]),
-                               columns=["random_satate", "kernel",
-                                        "Mathews", "C", "F1", "gamma"]).set_index("random_state", inplace=True)
-    g_dataframe = pd.DataFrame(numpy.column_stack([random_state, g_kernel, g_mathew, g_C, g_f1, g_gamma]),
-                               columns=["random_satate", "kernel",
-                                        "Mathews", "C", "F1", "gamma"]).set_index("random_state", inplace=True)
+    # Taking the confusion matrix
+    g_test_confusion = [matrix(*x.grid_confusion.ravel()) for x in named_parameters]
+    r_test_confusion = [matrix(*x.random_confusion.ravel()) for x in named_parameters]
 
-    return r_dataframe, g_dataframe
+    g_training_confusion = [matrix(*x.grid_train_confusion.ravel()) for x in named_parameters]
+    r_training_confusion = [matrix(*x.random_train_confusion.ravel()) for x in named_parameters]
+
+    # Separating confusion matrix into individual elements
+    g_test_true_n = [y.true_n for y in g_test_confusion]
+    g_test_false_p = [y.false_p for y in g_test_confusion]
+    g_test_false_n = [y.false_n for y in g_test_confusion]
+    g_test_true_p = [y.true_p for y in g_test_confusion]
+
+    g_training_true_n = [z.true_n for z in g_training_confusion]
+    g_training_false_p = [z.false_p for z in g_training_confusion]
+    g_training_false_n = [z.false_n for z in g_training_confusion]
+    g_training_true_p = [z.true_p for z in g_training_confusion]
+
+    r_test_true_n = [y.true_n for y in r_test_confusion]
+    r_test_false_p = [y.false_p for y in r_test_confusion]
+    r_test_false_n = [y.false_n for y in r_test_confusion]
+    r_test_true_p = [y.true_p for y in r_test_confusion]
+
+    r_training_true_n = [z.true_n for z in r_training_confusion]
+    r_training_false_p = [z.false_p for z in r_training_confusion]
+    r_training_false_n = [z.false_n for z in g_training_confusion]
+    r_training_true_p = [z.true_p for z in g_training_confusion]
+
+    r_dataframe = pd.DataFrame([random_state, r_kernel, r_C, r_gamma, r_test_true_n, r_test_true_p,
+                                r_test_false_p, r_test_false_n, r_training_true_n, r_training_true_p,
+                                r_training_false_p,
+                                r_training_false_n, r_mathew, r_f1, r_cv_score])
+
+    g_dataframe = pd.DataFrame([random_state, g_kernel, g_C, g_gamma, g_test_true_n, g_test_true_p,
+                                g_test_false_p, g_test_false_n, g_training_true_n, g_training_true_p,
+                                g_training_false_p,
+                                g_training_false_n, g_mathew, g_f1, g_cv_score])
+
+    r_dataframe = r_dataframe.transpose()
+    r_dataframe.columns = ["random_state", "kernel", "C", "gamma",
+                           "test_tn", "test_tp", "test_fp", "test_fn", "train_tn", "train_tp", "train_fp",
+                           "train_fn", "Mathews", "F1", "CV_F1"]
+
+    g_dataframe = g_dataframe.transpose()
+    g_dataframe.columns = ["random_state", "kernel", "C", "gamma", "test_tn",
+                           "test_tp", "test_fp", "test_fn", "train_tn", "train_tp", "train_fp",
+                           "train_fn", "Mathews", "F1", "CV_F1"]
+    return r_dataframe.set_index("random_state"), g_dataframe.set_index("random_state")
 
 
 # Loading the excel files
@@ -337,4 +381,7 @@ for x in [robust_X, standard_X]:
     L.append([X_train, X_test, Y_train, Y_test]) """
 # Trying the nested CV
 s_named_mean, s_model_list, s_named_parameters, s_named_records, s_random_state = mean_nested(standard_X, Y, 0)
+
 # r_named_mean, r_model_list, r_named_parameters = mean_nested(robust_X, Y) --> error
+
+r_dataframe, g_dataframe = to_dataframe(s_named_parameters, s_named_records, s_random_state)
