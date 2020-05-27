@@ -1,22 +1,35 @@
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 import pandas as pd
-from sklearn.metrics import matthews_corrcoef, make_scorer, confusion_matrix, accuracy_score, f1_score, precision_score
+import xgboost as xgb
+from sklearn.metrics import matthews_corrcoef, confusion_matrix, accuracy_score, f1_score, precision_score
 from sklearn.metrics import recall_score
 from sklearn.model_selection import GridSearchCV, RandomizedSearchCV
 from scipy.stats import uniform
 from numpy import arange
 import numpy
+from openpyxl import load_workbook
+from sklearn.feature_selection import RFECV
 from collections import namedtuple
-import umap
+import shap
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import RobustScaler, StandardScaler
-from sklearn.decomposition import PCA
-from collections import Counter
-import pickle
+from sklearn.preprocessing import StandardScaler
+from sklearn.feature_selection import RFE
 
-mathew = make_scorer(matthews_corrcoef)
+
+def xgbtree(X_train, Y_train, seed=27):
+    """computes the feature importance"""
+    XGBOOST = xgb.XGBClassifier(learning_rate=0.01, n_estimators=1000, max_depth=4, min_child_weight=6, gamma=0,
+                                subsample=0.8,
+                                colsample_bytree=0.8, objective='binary:logistic', nthread=4, scale_pos_weight=1,
+                                seed=seed)
+
+    clf = XGBOOST
+    model = clf.fit(X_train, Y_train)
+    important_features = model.get_booster().get_score(importance_type='gain')
+
+    return important_features, model
 
 
 # The support vectors machine classifier
@@ -40,8 +53,8 @@ def svc_classification(X_train, Y_train, X_test, state=20):
 
     # Model setting
 
-    svc_grid = GridSearchCV(SVC(class_weight="balanced"), grid_param2, scoring=scoring, refit="f1", cv=5)
-    svc_random = RandomizedSearchCV(SVC(class_weight="balanced"), random_param, scoring=scoring, refit="f1", cv=5,
+    svc_grid = GridSearchCV(SVC(class_weight="balanced"), grid_param2, scoring=scoring, refit="f1", cv=10)
+    svc_random = RandomizedSearchCV(SVC(class_weight="balanced"), random_param, scoring=scoring, refit="f1", cv=10,
                                     random_state=state)
 
     # Model training
@@ -49,11 +62,11 @@ def svc_classification(X_train, Y_train, X_test, state=20):
     fitted_random = svc_random.fit(X_train, Y_train)
 
     # Model predictions
-    y_random = fitted_random.predict(X_test)
-    y_grid = fitted_grid.predict(X_test)
+    y_random = fitted_random.best_estimator_.predict(X_test)
+    y_grid = fitted_grid.best_estimator_.predict(X_test)
 
-    grid_train_predicted = fitted_grid.predict(X_train)
-    random_train_predicted = fitted_random.predict(X_train)
+    grid_train_predicted = fitted_grid.best_estimator_.predict(X_train)
+    random_train_predicted = fitted_random.best_estimator_.predict(X_train)
 
     return fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted
 
@@ -68,14 +81,14 @@ def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, random_tra
     random_score = fitted_random.best_score_
     random_params = fitted_random.best_params_
 
-    print(f"best grid score {name}:{grid_score}, best grid parameters {name}: {grid_params}")
-    print(f"best random scores {name}: {random_score}, best random parameters {name}: {random_params}")
+    # print(f"best grid score {name}:{grid_score}, best grid parameters {name}: {grid_params}")
+    # print(f"best random scores {name}: {random_score}, best random parameters {name}: {random_params}")
 
     # Training scores
     random_train_confusion = confusion_matrix(Y_train, random_train_predicted)
     grid_train_confusion = confusion_matrix(Y_train, grid_train_predicted)
-    print(f"grid training matrix {name}:{grid_train_confusion}")
-    print(f"random training matrix {name}: {random_train_confusion}")
+    # print(f"grid training matrix {name}:{grid_train_confusion}")
+    # print(f"random training matrix {name}: {random_train_confusion}")
 
     # Test metrics
     random_confusion = confusion_matrix(Y_test, y_random)
@@ -91,12 +104,12 @@ def print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, random_tra
     random_recall = recall_score(Y_test, y_random, average="weighted")
     grid_recall = recall_score(Y_test, y_grid, average="weighted")
 
-    print(f"random confusion matrix {name}: {random_confusion}, grid confusion matrix {name}: {grid_confusion}")
+    """print(f"random confusion matrix {name}: {random_confusion}, grid confusion matrix {name}: {grid_confusion}")
     print(f"random Mathew coefficient {name}: {random_matthews}, grid mathiews coeficient {name}: {grid_matthews}")
     print(f"random accuracy {name}: {random_accuracy}, grid accuracy {name}: {grid_accuracy}")
     print(f"random f1 score {name}: {random_f1}, grid f1 score {name}: {grid_f1}")
     print(f"random precision score {name}: {random_precision}, grid precision score {name}: {grid_precision}")
-    print(f"random recall score {name}: {random_recall}, grid recall score {name}: {grid_recall}")
+    print(f"random recall score {name}: {random_recall}, grid recall score {name}: {grid_recall}")"""
 
     return grid_score, grid_params, grid_confusion, grid_accuracy, grid_f1, grid_precision, grid_recall, \
            grid_matthews, random_score, random_params, random_confusion, random_accuracy, random_matthews, \
@@ -115,7 +128,7 @@ def nested_cv(X, Y, name):
         name += 1
         X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=states, stratify=Y)
         fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted = svc_classification(
-            X_train, Y_train, X_test, state=states)
+            X_train, Y_train, X_test, states)
 
         grid_score, grid_params, grid_confusion, grid_accuracy, grid_f1, grid_precision, grid_recall, grid_matthews, \
         random_score, random_params, random_confusion, random_accuracy, random_matthews, random_f1, random_precision, \
@@ -146,14 +159,17 @@ def mean_nested(X, Y, name):
     parameter_record = namedtuple("parameters", ["grid_params", "grid_confusion", "random_params", "random_confusion",
                                                  "random_train_confusion", "grid_train_confusion"])
 
+    model_record = namedtuple("models", ["fitted_grid", "fitted_random", "y_grid", "y_random"])
+
     array = numpy.array(metric_list)
     mean = numpy.mean(array, axis=0)
 
     named_parameters = [parameter_record(*z) for z in parameter_list]
     named_mean = score_record(*mean)
     named_records = [score_record(*y) for y in metric_list]
+    named_models = [model_record(*d) for d in model_list]
 
-    return named_mean, model_list, named_parameters, named_records, random_state
+    return named_mean, named_models, named_parameters, named_records, random_state
 
 
 def unlisting(named_parameters, named_records):
@@ -186,88 +202,6 @@ def unlisting(named_parameters, named_records):
 
     return r_mathew, r_accuracy, r_f1, r_precision, r_recall, g_mathew, g_accuracy, g_f1, g_precision, g_recall, \
            g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma, r_cv_score, g_cv_score
-
-
-def plotting(named_parameters, named_records):
-    """ Plots everything"""
-    sns.set(style='white', context='poster', rc={'figure.figsize': (14, 10)})
-
-    r_mathew, r_accuracy, r_f1, r_precision, r_recall, g_mathew, g_accuracy, g_f1, g_precision, g_recall, \
-    g_kernel, g_C, g_gamma, r_kernel, r_C, r_gamma, r_cv_score, g_cv_score = unlisting(named_parameters, named_records)
-
-    # plotting C values
-    plt.figure()
-    plt.scatter(r_C, r_mathew)
-    plt.title("Scatter of Matthews VS random C")
-    plt.xlabel("C values")
-    plt.ylabel("Matthew score")
-
-    plt.figure()
-    plt.scatter(r_C, r_f1)
-    plt.title("Scatter of f1 VS random C")
-    plt.xlabel("C values")
-    plt.ylabel("F1 score")
-
-    plt.figure()
-    plt.scatter(g_C, g_mathew)
-    plt.title("Scatter of Matthew VS grid C")
-    plt.xlabel("C values")
-    plt.ylabel("Matthew score")
-
-    plt.figure()
-    plt.scatter(g_C, g_f1)
-    plt.title("Scatter of f1 VS grid C")
-    plt.xlabel("C values")
-    plt.ylabel("F1 score")
-
-    # plotting gamma values
-    plt.figure()
-    plt.scatter(r_gamma, r_mathew)
-    plt.title("Scatter of Matthews VS random gamma")
-    plt.xlabel("gamma values")
-    plt.ylabel("Matthew score")
-
-    plt.figure()
-    plt.scatter(r_gamma, r_f1)
-    plt.title("Scatter of F1 VS random gamma")
-    plt.xlabel("gamma values")
-    plt.ylabel("F1 score")
-
-    plt.figure()
-    plt.scatter(g_gamma, g_mathew)
-    plt.title("Scatter of Matthew VS grid gamma")
-    plt.xlabel("gamma values")
-    plt.ylabel("Matthew score")
-
-    plt.figure()
-    plt.scatter(g_gamma, g_f1)
-    plt.title("Scatter of F1 VS grid gamma")
-    plt.xlabel("gamma values")
-    plt.ylabel("F1 score")
-
-    # Kernel plotting
-    pd_r_matthew = pd.DataFrame(numpy.column_stack([r_kernel, r_mathew]), columns=["kernel", "scores"])
-    pd_r_f1 = pd.DataFrame(numpy.column_stack([r_kernel, r_f1]), columns=["kernel", "scores"])
-    pd_g_matthew = pd.DataFrame(numpy.column_stack([g_kernel, g_mathew]), columns=["kernel", "scores"])
-    pd_g_f1 = pd.DataFrame(numpy.column_stack([g_kernel, g_f1]), columns=["kernel", "scores"])
-
-    plt.figure()
-    plt.title("Catplot of Matthew VS random Kernel")
-    sns.catplot(x="random kernel type", y="Matthew score", kind="swarm", data=pd_r_matthew)
-
-    plt.figure()
-    plt.title("Catplot of F1 VS random Kernel")
-    sns.catplot(x="random kernel type", y="F1 score", kind="swarm", data=pd_r_f1)
-
-    plt.figure()
-    plt.title("Catplot of Matthew VS grid Kernel")
-    sns.catplot(x="Grid kernel type", y="Matthew score", kind="swarm", data=pd_g_matthew)
-
-    plt.figure()
-    plt.title("Catplot of F1 VS grid Kernel")
-    sns.catplot(x="Grid kernel type", y="F1 score", kind="swarm", data=pd_g_f1)
-
-    plt.tight_layout()
 
 
 def to_dataframe(named_parameters, named_records, random_state):
@@ -334,6 +268,21 @@ def view_setting():
     pd.set_option('display.max_columns', 14)
 
 
+def writing(dataset, sheet_name):
+    book = load_workbook('score_results.xlsx')
+    writer = pd.ExcelWriter('score_results.xlsx', engine='openpyxl')
+    writer.book = book
+
+    ## ExcelWriter for some reason uses writer.sheets to access the sheet.
+    ## If you leave it empty it will not know that sheet Main is already there
+    ## and will create a new sheet.
+    writer.sheets = dict((ws.title, ws) for ws in book.worksheets)
+
+    dataset.to_excel(writer, sheet_name=f'{sheet_name}')
+    writer.save()
+    writer.close()
+
+
 # Loading the excel files
 global_score = pd.read_excel("sequences.xlsx", index_col=0, sheet_name="global")
 local_score = pd.read_excel("sequences.xlsx", index_col=0, sheet_name="local")
@@ -341,57 +290,14 @@ local_score = pd.read_excel("sequences.xlsx", index_col=0, sheet_name="local")
 # generating X and Y
 Y = global_score["label"].copy()
 X = global_score.drop(["seq", "label"], axis=1)
-robust_X = RobustScaler().fit_transform(X)
+
 standard_X = StandardScaler().fit_transform(X)
-
-
-# Generate the model and the performance metrics
-
-def scaled_data(X, Y, name):
-    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=80)
-    fitted_grid, fitted_random, y_grid, y_random, random_train_predicted, grid_train_predicted = svc_classification(
-        X_train, Y_train, X_test)
-    print_score(fitted_grid, fitted_random, Y_test, y_random, y_grid, random_train_predicted, grid_train_predicted,
-                Y_train, name)
-
-    return X_train, X_test, Y_train, Y_test
-
-
-# plotting the data, UMAP transformation
-"""
-sns.set(style='white', context='poster', rc={'figure.figsize':(14,10)})
-reducer = umap.UMAP(random_state=100, metric="russellrao", n_components=2)
-embedding = reducer.fit_transform(X)
-
-plt.scatter(embedding[:,0], embedding[:,1], c=Y, cmap="tab20c") """
-
-# PCA transformation and plotting
-"""
-pca_r = PCA(n_components=2, random_state=60)
-pca_s = PCA(n_components=2, random_state=60)
-robust_PCA = pca_r.fit_transform(robust_X)
-standard_PCA = pca_s.fit_transform(standard_X)
-
-pd_robust = pd.DataFrame(robust_PCA, columns=["PCA1", "PCA2"])
-pd_standard = pd.DataFrame(standard_PCA, columns=["PCA1", "PCA2"])
-
-sns.set(style='white', context='poster', rc={'figure.figsize':(14,10)})
-plt.legend([0,1],prop={'size': 15})
-plt.scatter(pd_standard.iloc[:,0], pd_standard.iloc[:, 1], c=Y, cmap="tab20c")
-"""
-# Different scaling systems
-"""
-count = 0
-L = []
-for x in [robust_X, standard_X]:
-    count += 1
-    X_train, X_test, Y_train, Y_test = scaled_data(x, Y, name=str(count))
-    L.append([X_train, X_test, Y_train, Y_test]) """
+feature_names = [i for i in X.columns]
 
 # Trying the nested CV
 s_named_mean, s_model_list, s_named_parameters, s_named_records, s_random_state = mean_nested(standard_X, Y, 0)
-# r_named_mean, r_model_list, r_named_parameters = mean_nested(robust_X, Y) --> error
 
-# Generate sthe dataframe
+# Generates the dataframe
 r_dataframe, g_dataframe = to_dataframe(s_named_parameters, s_named_records, s_random_state)
+
 view_setting()
